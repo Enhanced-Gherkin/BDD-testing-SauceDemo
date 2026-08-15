@@ -19,6 +19,7 @@ event.dispatcher.on(event.test.after, function (test) {
     const memAfter = process.memoryUsage().heapUsed;
     if (memAfter > peakMemory) peakMemory = memAfter;
 
+    
     const memPeakMB = peakMemory / 1024 / 1024;
     const cpuUserMs = cpuUsage.user / 1000;
     const cpuSystemMs = cpuUsage.system / 1000;
