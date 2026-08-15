@@ -86,7 +86,7 @@ AfterAll(async function () {
 
     const reportPath = path.join(outputDir, `logs-${timestamp}.json`);
     fs.writeFileSync(reportPath, JSON.stringify(logData, null, 2), 'utf-8');
-    console.log(`📊 Метрики сохранены в ${reportPath}`);
+    console.log(`Метрики сохранены в ${reportPath}`);
 });
 
 function getPage() {
