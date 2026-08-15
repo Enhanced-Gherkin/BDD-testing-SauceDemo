@@ -1,9 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-
 const LOGS_DIR = path.join(process.cwd(), 'results');
-const OUTPUT_DIR = path.join(process.cwd(), 'aggregated-stats-concordia');
+const OUTPUT_DIR = path.join(process.cwd(), 'aggregated-stats');
 const Z_CRITICAL = 1.96;
 
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -11,7 +10,7 @@ if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 function getLogFiles() {
     if (!fs.existsSync(LOGS_DIR)) return [];
     return fs.readdirSync(LOGS_DIR)
-        .filter(f => f.startsWith('concordia-metric-') && f.endsWith('.json') && !f.includes('overall'))
+        .filter(f => f.startsWith('run-') && f.endsWith('.json') && !f.includes('overall'))
         .map(f => path.join(LOGS_DIR, f))
         .sort();
 }
@@ -49,24 +48,25 @@ function main() {
     try {
         const files = getLogFiles();
         if (files.length === 0) {
-            console.error(` В папке ${LOGS_DIR} не найдено файлов concordia-metric-*.json`);
+            console.error(` В папке ${LOGS_DIR} не найдено файлов run-*.json`);
             return;
         }
 
-        console.log(` Найдено ${files.length} файлов, используется ${filteredFiles.length} прогонов.\n`);
+        const usedFiles = files;
+        console.log(` Найдено ${files.length} файлов, используется ${usedFiles.length} прогонов.\n`);
 
         const runSummaries = [];
         const allTestEntries = [];
 
-        for (const file of filteredFiles) {
+        for (const file of usedFiles) {
             const data = readLogFile(file);
             if (!data) continue;
             if (data.summary) {
                 runSummaries.push({
                     sumDurationMs: data.summary.sumDurationMs || 0,
                     avgPeakMemoryMB: data.summary.avgPeakMemoryMB || 0,
-                    avgCpuUserPercent: data.summary.avgPeakCpuUserPercent || 0,
-                    avgCpuSystemPercent: data.summary.avgPeakCpuSystemPercent || 0,
+                    avgCpuUserPercent: data.summary.avgCpuUserPercent || 0,
+                    avgCpuSystemPercent: data.summary.avgCpuSystemPercent || 0,
                     passed: data.summary.passed || 0,
                     failed: data.summary.failed || 0,
                     totalTests: data.summary.totalTests || 0,
@@ -78,8 +78,8 @@ function main() {
                         testName: test.testName,
                         durationMs: test.durationMs || 0,
                         peakMemoryMB: test.peakMemoryMB || 0,
-                        cpuUserPercent: test.peakCpuUserPercent !== undefined ? test.peakCpuUserPercent : 0,
-                        cpuSystemPercent: test.peakCpuSystemPercent !== undefined ? test.peakCpuSystemPercent : 0,
+                        cpuUserPercent: test.cpuUserPercent !== undefined ? test.cpuUserPercent : 0,
+                        cpuSystemPercent: test.cpuSystemPercent !== undefined ? test.cpuSystemPercent : 0,
                         status: test.status || 'failed',
                     });
                 }
@@ -141,7 +141,7 @@ function main() {
             timestamp,
             config: {
                 totalLogFiles: files.length,
-                usedLogFiles: filteredFiles.length,
+                usedLogFiles: usedFiles.length,
                 confidenceLevel: 0.95,
                 criticalValue: Z_CRITICAL,
             },
@@ -170,7 +170,7 @@ function main() {
         console.log(`JSON сохранён: ${outputFile}`);
 
         console.log('\n Сводка по прогонам:');
-        console.log(` Количество прогонов: ${filteredFiles.length}`);
+        console.log(` Количество прогонов: ${usedFiles.length}`);
         console.log(` Средняя суммарная длительность: ${durationStats.mean.toFixed(0)} мс (ДИ: ${durationStats.ciLower.toFixed(0)} – ${durationStats.ciUpper.toFixed(0)})`);
         console.log(` Среднее пиковое ОЗУ: ${memStats.mean.toFixed(2)} MB (ДИ: ${memStats.ciLower.toFixed(2)} – ${memStats.ciUpper.toFixed(2)})`);
         console.log(` Средний CPU User: ${cpuUserStats.mean.toFixed(2)} % (ДИ: ${cpuUserStats.ciLower.toFixed(2)} – ${cpuUserStats.ciUpper.toFixed(2)})`);
@@ -180,19 +180,18 @@ function main() {
 
         console.log(`\n Статистика по ${testStats.length} тестам (выборочно первые 5):`);
         testStats.slice(0, 5).forEach((t, i) => {
-            console.log(`  ${i+1}. ${t.testName}`);
-            console.log(`  Длительность: сред. ${t.duration.mean.toFixed(0)} мс, ДИ: [${t.duration.ciLower.toFixed(0)}, ${t.duration.ciUpper.toFixed(0)}]`);
-            console.log(`  ОЗУ: сред. ${t.memory.mean.toFixed(2)} MB, ДИ: [${t.memory.ciLower.toFixed(2)}, ${t.memory.ciUpper.toFixed(2)}]`);
-            console.log(`  CPU User: сред. ${t.cpuUser.mean.toFixed(2)} %, ДИ: [${t.cpuUser.ciLower.toFixed(2)}, ${t.cpuUser.ciUpper.toFixed(2)}]`);
-            console.log(`  CPU System: сред. ${t.cpuSystem.mean.toFixed(2)} %, ДИ: [${t.cpuSystem.ciLower.toFixed(2)}, ${t.cpuSystem.ciUpper.toFixed(2)}]`);
+            console.log(`${i+1}. ${t.testName}`);
+            console.log(`Длительность: сред. ${t.duration.mean.toFixed(0)} мс, ДИ: [${t.duration.ciLower.toFixed(0)}, ${t.duration.ciUpper.toFixed(0)}]`);
+            console.log(`ОЗУ: сред. ${t.memory.mean.toFixed(2)} MB, ДИ: [${t.memory.ciLower.toFixed(2)}, ${t.memory.ciUpper.toFixed(2)}]`);
+            console.log(`CPU User: сред. ${t.cpuUser.mean.toFixed(2)} %, ДИ: [${t.cpuUser.ciLower.toFixed(2)}, ${t.cpuUser.ciUpper.toFixed(2)}]`);
+            console.log(`CPU System: сред. ${t.cpuSystem.mean.toFixed(2)} %, ДИ: [${t.cpuSystem.ciLower.toFixed(2)}, ${t.cpuSystem.ciUpper.toFixed(2)}]`);
         });
         if (testStats.length > 5) console.log(`  ... и ещё ${testStats.length - 5} тестов.`);
-
         console.log(`\n ИТОГ:`);
-        console.log(`  Суммарная длительность: ${durationStats.mean.toFixed(0)} мс (ДИ: ${durationStats.ciLower.toFixed(0)} – ${durationStats.ciUpper.toFixed(0)})`);
-        console.log(`  Среднее пиковое ОЗУ: ${memStats.mean.toFixed(2)} MB (ДИ: ${memStats.ciLower.toFixed(2)} – ${memStats.ciUpper.toFixed(2)})`);
-        console.log(`  Средний CPU User: ${cpuUserStats.mean.toFixed(2)} % (ДИ: ${cpuUserStats.ciLower.toFixed(2)} – ${cpuUserStats.ciUpper.toFixed(2)})`);
-        console.log(`  Средний CPU System: ${cpuSystemStats.mean.toFixed(2)} % (ДИ: ${cpuSystemStats.ciLower.toFixed(2)} – ${cpuSystemStats.ciUpper.toFixed(2)})`);
+        console.log(`Суммарная длительность: ${durationStats.mean.toFixed(0)} мс (ДИ: ${durationStats.ciLower.toFixed(0)} – ${durationStats.ciUpper.toFixed(0)})`);
+        console.log(`Среднее пиковое ОЗУ: ${memStats.mean.toFixed(2)} MB (ДИ: ${memStats.ciLower.toFixed(2)} – ${memStats.ciUpper.toFixed(2)})`);
+        console.log(`Средний CPU User: ${cpuUserStats.mean.toFixed(2)} % (ДИ: ${cpuUserStats.ciLower.toFixed(2)} – ${cpuUserStats.ciUpper.toFixed(2)})`);
+        console.log(`Средний CPU System: ${cpuSystemStats.mean.toFixed(2)} % (ДИ: ${cpuSystemStats.ciLower.toFixed(2)} – ${cpuSystemStats.ciUpper.toFixed(2)})`);
 
         const csvLines = [
             ['Название теста', 'Кол-во прогонов',
@@ -214,21 +213,18 @@ function main() {
 
         csvLines.push([
             'Итогово',
-            filteredFiles.length,
+            usedFiles.length,
             durationStats.mean, durationStats.variance, durationStats.ciLower, durationStats.ciUpper,
             memStats.mean, memStats.variance, memStats.ciLower, memStats.ciUpper,
             cpuUserStats.mean, cpuUserStats.variance, cpuUserStats.ciLower, cpuUserStats.ciUpper,
             cpuSystemStats.mean, cpuSystemStats.variance, cpuSystemStats.ciLower, cpuSystemStats.ciUpper,
         ]);
-
         const csvContent = csvLines.map(row => row.join(',')).join('\n');
         const csvFile = path.join(OUTPUT_DIR, `aggregated-stats-${timestamp}.csv`);
         fs.writeFileSync(csvFile, csvContent, 'utf-8');
         console.log(`\n CSV-версия сохранена: ${csvFile}`);
-
     } catch (error) {
         console.error(' Ошибка при выполнении:', error);
     }
 }
-
 main();
