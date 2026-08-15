@@ -45,3 +45,4 @@ for (let i = 1; i <= RUNS; i++) {
 
 console.log(`\n Все ${RUNS} прогонов выполнены.`);
 console.log(`Метрики сохранены в ${METRICS_DIR}`);
+
